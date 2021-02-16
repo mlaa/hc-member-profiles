@@ -36,6 +36,17 @@ function hcmp_register_xprofile_field_types( array $fields ) {
 		$fields['core_deposits'] = 'BP_XProfile_Field_Type_CORE_Deposits';
 	}
 
+	// Organizations.
+	if ( class_exists( 'Hc_Organizations' ) ) {
+		require_once dirname( __FILE__ ) . '/class-bp-xprofile-field-type-hc-organizations.php';
+		$fields['organizations'] = 'BP_XProfile_Field_Type_Organizations';
+		// Backpat functionality - TODO roll this into the field type.
+		require_once dirname( __FILE__ ) . '/class-organizations.php';
+		add_action( 'bp_get_template_part', [ 'Organizations', 'add_organizations_to_directory' ] );
+		add_action( 'xprofile_updated_profile', [ 'Organizations', 'save_organizations' ] );
+		add_action( 'send_headers', [ 'Organizations', 'set_organizations_cookie_query' ] );
+	}
+
 	// Academic Interests.
 	if ( class_exists( 'MLA_Academic_Interests' ) ) {
 		// Field type.
@@ -172,6 +183,7 @@ function hcmp_get_normalized_url_field_value( $field_name ) {
 		HC_Member_Profiles_Component::TWITTER  => 'twitter.com',
 		HC_Member_Profiles_Component::FACEBOOK => 'facebook.com',
 		HC_Member_Profiles_Component::LINKEDIN => 'linkedin.com/in',
+		HC_Member_Profiles_Component::FIGSHARE => 'figshare.com',
 		HC_Member_Profiles_Component::ORCID    => 'orcid.org',
 	];
 
@@ -225,6 +237,7 @@ function hcmp_get_field( $field_name = '' ) {
 		HC_Member_Profiles_Component::PROJECTS,
 		HC_Member_Profiles_Component::TALKS,
 		HC_Member_Profiles_Component::MEMBERSHIPS,
+		HC_Member_Profiles_Component::CV,
 	];
 
 	if ( in_array( $field_name, $user_hideable_fields ) ) {
@@ -263,12 +276,25 @@ function hcmp_get_field( $field_name = '' ) {
 	$retval = '';
 
 	if ( ! empty( $content ) ) {
-		$retval = sprintf(
+
+		if ( bp_is_user_profile_edit() ) {
+		     $retval = sprintf(
+                        '<div class="%s"><h4>%s</h4>%s <br><br> %s</div>',
+                        implode( ' ', $classes ),
+                        HC_Member_Profiles_Component::$display_names[ $field_name ],
+                        $content,
+			bp_get_the_profile_field_description()
+		
+                    );
+
+		} else {
+		    $retval = sprintf(
 			'<div class="%s"><h4>%s</h4>%s</div>',
 			implode( ' ', $classes ),
 			HC_Member_Profiles_Component::$display_names[ $field_name ],
 			$content
-		);
+		    );
+		}
 	}
 
 	return $retval;
@@ -331,7 +357,6 @@ function _hcmp_get_field_data( $field_name = '' ) {
 			$retval = bp_get_the_profile_field_value();
 			if ( 'textarea' === bp_get_the_profile_field_type() ) {
 				$retval = nl2br( $retval );
-
 			}
 			return $retval;
 		}
@@ -374,13 +399,13 @@ function _hcmp_create_xprofile_fields() {
 	// Create field types with no dependencies other than BP XProfile.
 	$default_fields = [
 		HC_Member_Profiles_Component::NAME         => 'textbox',
-		HC_Member_Profiles_Component::AFFILIATION  => 'textbox',
 		HC_Member_Profiles_Component::TITLE        => 'textbox',
 		HC_Member_Profiles_Component::SITE         => 'url',
 		HC_Member_Profiles_Component::TWITTER      => 'textbox',
 		HC_Member_Profiles_Component::ORCID        => 'textbox',
 		HC_Member_Profiles_Component::FACEBOOK     => 'url',
 		HC_Member_Profiles_Component::LINKEDIN     => 'url',
+		HC_Member_Profiles_Component::FIGSHARE     => 'url',
 		HC_Member_Profiles_Component::ABOUT        => 'textarea',
 		HC_Member_Profiles_Component::EDUCATION    => 'textarea',
 		HC_Member_Profiles_Component::PUBLICATIONS => 'textarea',
@@ -413,6 +438,7 @@ function _hcmp_create_xprofile_fields() {
 
 	// Create field types that have satisfied dependencies - see hcmp_register_xprofile_field_types().
 	$extra_fields = [
+		HC_Member_Profiles_Component::AFFILIATION  => 'organizations',
 		HC_Member_Profiles_Component::DEPOSITS  => 'core_deposits',
 		HC_Member_Profiles_Component::CV        => 'bp_attachment',
 		HC_Member_Profiles_Component::INTERESTS => 'academic_interests',
